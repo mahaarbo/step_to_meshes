@@ -104,5 +104,5 @@ ENV/
 meshes/
 
 #Step files
-.step
-.stp
+*.step
+*.stp

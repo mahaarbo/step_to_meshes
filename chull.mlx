@@ -1,5 +1,8 @@
 <!DOCTYPE FilterScript>
 <FilterScript>
+  <filter name="Merge Close Vertices">
+    <Param type="RichAbsPerc" value="0" min="0" name="Threshold" max="0"/>
+  </filter>
  <filter name="Convex Hull">
   <Param type="RichBool" value="true" name="reorient"/>
  </filter>

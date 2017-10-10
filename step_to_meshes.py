@@ -1,13 +1,10 @@
 #!/bin/python
-
 #Author: Mathias Hauan Arbo
 #Date: 25. September, 2017
-
 """
 Convert step files to meshes using freecad. Simplifies the stl using meshlab.
 Also makes convex hulls, and can run arbitrary meshlabscripts using meshlabserver.
 """
-
 import sys
 FREECADPATH = "/usr/lib/freecad/lib/" #Ubuntu repo standard
 DEBUGPRINT = False #be very verbose
@@ -16,6 +13,7 @@ import FreeCAD
 import os
 import subprocess
 import Mesh
+import csv
 
 def run_script_on_mesh(imesh_path, script_path, omesh_path=None, optargs="-om vn fn", verbose=False):
     """
@@ -43,7 +41,7 @@ def run_script_on_mesh(imesh_path, script_path, omesh_path=None, optargs="-om vn
         subprocess.call("meshlabserver -i " + imesh_path + " -o " + omesh_path + " "+optargs + " -s " + script_path,shell=True,stdout=deadpipe,stderr=deadpipe)
         deadpipe.close()
     
-def make_STL(obj, omesh_path=None):
+def make_STL(obj, omesh_path=None, placement="local"):
         """
         Make \"meshfolder_path\"/\"Label\"/full.stl from the object. Uses Shape module of FreeCAD.
         returns omesh_path
@@ -62,15 +60,20 @@ def make_STL(obj, omesh_path=None):
 
         #Ideally this uses custom transformation, and isn't
         #desctructive for the object in the document. But whatever.
-        obj.Placement.Base.x = 0
-        obj.Placement.Base.y = 0
-        obj.Placement.Base.z = 0
+        if placement is "local":
+            placement2csv(obj.Placement, os.path.join(omeshfolder_path, "oldplacement.csv"))
+            obj.Placement = obj.Placement.inverse().multiply(obj.Placement)
+            
+        elif isinstance(placement, FreeCAD.Placement):
+            placement2csv(obj.Placement, os.path.join(omeshfolder_path, "oldplacement.csv"))
+            obj.Placement = placement
+            placement2csv(obj.Placement, os.path.join(omeshfolder_path, "newplacement.csv"))
         if DEBUGPRINT:
             sys.stdout.write("Creating "+omesh_path+"\n")
         Mesh.export([obj],omesh_path)
         return omesh_path
     
-def make_OBJ(obj, omesh_path=None):
+def make_OBJ(obj, omesh_path=None, placement="local"):
     """
     Make \"meshfolder_path\"/\"Label\"/full.obj from the object. Uses Shape module of FreeCAD.
     returns omesh_path
@@ -87,9 +90,12 @@ def make_OBJ(obj, omesh_path=None):
             sys.stdout.write("Creating "+omeshfolder_path+"\n")
         os.makedirs(omeshfolder_path)
     #Ideally this uses custom transformation, and isn't desctructive. But whatever.
-    obj.Placement.Base.x = 0
-    obj.Placement.Base.y = 0
-    obj.Placement.Base.z = 0
+    if placement is "local":
+        obj.Placement = obj.Placement.inverse().multiply(obj.Placement)
+        
+    elif isinstance(placement, FreeCAD.Placement):
+        obj.Placement = placement
+
     if DEBUGPRINT:
         sys.stdout.write("Creating "+omesh_path+"\n")
     obj.Shape.exportObj(omesh_path)
@@ -146,8 +152,55 @@ def get_unique_objects(fc_doc):
     if DEBUGPRINT:
         sys.stdout.write("Found " + str(len(unique_objects)) +" unique objects\n")
     return unique_objects
-    
-    
+
+def placement2csv(placement,csvfilename):
+    import FreeCAD
+    odir, ofilename = os.path.split(csvfilename)
+    if not isinstance(placement, FreeCAD.Placement):
+        return False
+    if not os.path.exists(odir):
+        os.makedirs(odir)
+    with open(csvfilename,"wb") as placementcsv:
+        csvwriter = csv.writer(placementcsv, delimiter=",")
+        csvwriter.writerow(["Base", placement.Base.x, placement.Base.y, placement.Base.z])
+        csvwriter.writerow(["Axis", placement.Rotation.Axis.x, placement.Rotation.Axis.y, placement.Rotation.Axis.z])
+        csvwriter.writerow(["Angle", placement.Rotation.Angle])
+    return csvfilename
+
+def placement2csv(placements, csvfilename):
+    odir, ofilename = os.path.split(csvfilename)
+    if not type(placements)==list:
+        placements = [placements]
+    if not os.path.exists(odir):
+        os.makedirs(odir)
+    with open(csvfilename,"wb") as plcsv:
+        csvwriter = csv.writer(plcsv, delimiter = ",")
+        for pl_ind, pl in enumerate(placements):
+            csvwriter.writerow(["Placement_Index", pl_ind])
+            csvwriter.writerow(["Base", pl.Base.x, pl.Base.y, pl.Base.z])
+            csvwriter.writerow(["Axis", pl.Rotation.Axis.x, pl.Rotation.Axis.y, pl.Rotation.Axis.z])
+            csvwriter.writerow(["Angle", pl.Rotation.Angle])
+    return csvfilename
+        
+def csv2placement(csvfilename):
+    import FreeCAD
+    with open(csvfilename) as placementcsv:
+        csvreader  = csv.reader(placementcsv, delimiter=",")
+        placements =[]
+        for row in csvreader:
+            if row[0] == "Placement_Index":
+                placements.append(FreeCAD.Placement())
+            elif row[0] == "Base":
+                placements[-1].Base.x = float(row[1])
+                placements[-1].Base.y = float(row[2])
+                placements[-1].Base.z = float(row[3])
+            elif row[0] == "Axis":
+                placements[-1].Rotation.Axis.x = float(row[1])
+                placements[-1].Rotation.Axis.y = float(row[2])
+                placements[-1].Rotation.Axis.z = float(row[3])
+            elif row[0] == "Angle":
+                placements[-1].Rotation.Angle = float(row[1])
+    return placements
 
 if __name__=="__main__":
     #Argument handling
@@ -156,6 +209,9 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Convert step files into meshes.")
     parser.add_argument("cadfile",
                         help="Supported formats: .stp")
+    parser.add_argument("-partlocalframe",
+                        help="Sets the coordinate frames to local of the part",
+                        action="store_true")
     args = parser.parse_args()
     #doc = FreeCAD.newDocument("tempdoc")
     #FreeCAD.setActiveDocument("tempdoc")
@@ -165,16 +221,15 @@ if __name__=="__main__":
     
     unique_objects = get_unique_objects(doc)
     print "Found "+str(len(unique_objects))+" unique objects"
+    if args.partlocalframe:
+        placement = "local"
+    else:
+        placement = ""
     for obj in unique_objects:
-        stl_path = make_STL(obj)
-        simple_path = make_simplified_STL(stl_path, n_iterations=10)
+        stl_path = make_STL(obj,placement=placement)
+        simple_path = make_simplified_STL(stl_path, n_iterations=20)
         chull_path = make_convex_hull(simple_path,verbose=False)
-        make_simplified_STL(chull_path, omesh_path=chull_path, n_iterations=10)
+        make_simplified_STL(chull_path, omesh_path=chull_path, n_iterations=30)
         print "Completed "+obj.Label+".stl"
     #print "Inserting cadfile, this may take some time."
     #fcimp.insert(args.cadfile, "tempdoc")
-
-             
-    
-    
-    

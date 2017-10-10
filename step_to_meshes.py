@@ -212,9 +212,13 @@ if __name__=="__main__":
     parser.add_argument("-partlocalframe",
                         help="Sets the coordinate frames to local of the part",
                         action="store_true")
+    parser.add_argument("-nsimplify",
+                        help="Number of iterations the simplifier runs (default 10)",
+                        default=10)
+    parser.add_argument("-nchull",
+                        help="Number of iterations the simplifier runs after convex hull(default 10)")
     args = parser.parse_args()
-    #doc = FreeCAD.newDocument("tempdoc")
-    #FreeCAD.setActiveDocument("tempdoc")
+
     doc = FreeCAD.newDocument("temp")
     FreeCAD.setActiveDocument("temp")
     fcimp.insert(args.cadfile,"temp")
@@ -227,9 +231,9 @@ if __name__=="__main__":
         placement = ""
     for obj in unique_objects:
         stl_path = make_STL(obj,placement=placement)
-        simple_path = make_simplified_STL(stl_path, n_iterations=20)
+        simple_path = make_simplified_STL(stl_path, n_iterations=args.nsimplify)
         chull_path = make_convex_hull(simple_path,verbose=False)
-        make_simplified_STL(chull_path, omesh_path=chull_path, n_iterations=30)
+        make_simplified_STL(chull_path, omesh_path=chull_path, n_iterations=args.nchull)
         print "Completed "+obj.Label+".stl"
     #print "Inserting cadfile, this may take some time."
     #fcimp.insert(args.cadfile, "tempdoc")

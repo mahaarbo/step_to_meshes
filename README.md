@@ -1,5 +1,10 @@
-# step_to_meshes
-Scripts to convert the bodies in a step file to meshes for use in rviz, gazebo or otherwise.
+# STEP TO MESHES
+This script converts the shapes/parts in a STEP file to meshes for use in rViz, Gazebo, or similar. 
 
-## TODO:
-Make the functions more self contained, and that repeated objects are just given as multiple placements. Not discarded as they're done now.
+## USAGE
+Read the help: `python step_to_meshes.py -h`.
+
+Places all meshes in a `meshes` folder in the current working directory. 
+
+## File formats
+Can export `STL`, `AMF`, `DAE`, `OBJ`, basically the script can take whatever FreeCAD can open, and export whatever mesh meshlabserver can support. 
